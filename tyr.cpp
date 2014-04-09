@@ -25,6 +25,7 @@
 // #     -d    x axis minimum                                                     #
 // #     -v    verbose flag                                                       #
 // #     -f    output file all formats flag                                       #
+// #     -m    mode (arbitrary, likely for debugging)                             #
 // #                                                                              #
 // # EXAMPLES                                                                     #
 // #                                                                              #
@@ -117,7 +118,11 @@
     #include "TLatex.h"
     #include "TLine.h"
     #include "TSpline.h"
+    #include "TColor.h"
     #include "TGraph.h"
+    #include "TGraphErrors.h"
+    #include "TPaveText.h"
+    #include "TAxis.h"
     #include "TStopwatch.h"
     #include "TError.h"
     #include "TChain.h"
@@ -163,6 +168,7 @@ int main (int argc, char **argv){
     double axisxMaximum = DBL_MAX;          // x axis maximum               (c)
     double axisxMinimum = DBL_MAX;          // x axis minimum               (d)
     int verboseFlag = 0;                    // verbose flag                 (v)
+    int mode = 0;                           // mode                         (m)
     int outputAllFormatsFlag1 = 0;          // output file all formats flag (f)
     int index;                              // internal variable
     int c;                                  // internal variable
@@ -171,7 +177,7 @@ int main (int argc, char **argv){
     opterr = 0;
 
     // process command line arguments and options
-    while ((c = getopt (argc, argv, "i:o:t:x:y:a:b:c:d:fv")) != -1)
+    while ((c = getopt (argc, argv, "i:o:t:x:y:a:b:c:d:m:fv")) != -1)
         switch (c){
             case 'i':
                 fileName1 = optarg;
@@ -200,6 +206,9 @@ int main (int argc, char **argv){
             case 'd':
                 axisxMinimum = returnDoubleFromPointerToChar(optarg);
                 break;
+            case 'm':
+                mode = returnDoubleFromPointerToChar(optarg);
+                break;
             case 'f':
                 outputAllFormatsFlag1 = 1;
                 break;
@@ -216,7 +225,8 @@ int main (int argc, char **argv){
                     optopt == 'a' ||
                     optopt == 'b' ||
                     optopt == 'c' ||
-                    optopt == 'd'
+                    optopt == 'd' ||
+                    optopt == 'm'
                 ){
                     fprintf (stderr, "option -%c requires argument\n", optopt);
                 }
@@ -240,6 +250,10 @@ int main (int argc, char **argv){
     vector<double> x;
     // y variable
     vector<double> y;
+    // dx variable
+    vector<double> dx;
+    // dy variable
+    vector<double> dy;
     // Access the data in the input file.
     ifstream file1 (fileName1.c_str());
     string line;
@@ -258,18 +272,73 @@ int main (int argc, char **argv){
             if (itemNumber == 1) {x.push_back(atof(item.c_str()));}
             // Store y datum.
             if (itemNumber == 2) {y.push_back(atof(item.c_str()));}
+            // Store dx datum.
+            if (itemNumber == 3) {dx.push_back(atof(item.c_str()));}
+            // Store dy datum.
+            if (itemNumber == 4) {dy.push_back(atof(item.c_str()));}
         }
         if (verboseFlag == 1) {cout << endl;}
     }		
     file1.close();
     int numberOfLinesInInputFile = currentLineNumber + 1;
     // number of data points
-    int n = numberOfLinesInInputFile - 1;
+    int n = numberOfLinesInInputFile - 1;    
     // Create a new canvas.
     TCanvas *canvas1 = new TCanvas(graphTitleMain.c_str(), graphTitleMain.c_str());
     //canvas1->SetLogy();
     // Create a new graph.
-    TGraph *graph1 = new TGraph(n, &x[0], &y[0]);
+    TGraph *graph1 = new TGraphErrors(n, &x[0], &y[0], &dx[0], &dy[0]);
+    int debugStyleOff = 0;
+    if (debugStyleOff != 1){
+        // Define colours.
+            int colourBlack1 = TColor::GetColor("#000000");
+            int colourWhite1 = TColor::GetColor("#ffffff");
+            // colour options
+                int colourBackground1;
+                int colourLine1;
+                int colourAxesAndTitles1;
+                if (mode == 1){
+                    // white foreground, black background
+                    colourBackground1 = colourBlack1;
+                    colourLine1 = colourWhite1;
+                    colourAxesAndTitles1 = colourWhite1;
+                }
+                else {
+                    // black foreground, white background
+                    colourBackground1 = colourWhite1;
+                    colourLine1 = colourBlack1;
+                    colourAxesAndTitles1 = colourBlack1;
+                }
+        // Set colours.
+            // Set background colours.
+	        // canvas
+                canvas1->SetFillColor(colourBackground1);
+		// frame
+                gPad->SetFrameFillColor(colourBackground1);
+            // Set graph line colours.
+                // graph
+                graph1->SetLineColor(colourLine1);
+                // frame
+                gPad->SetFrameLineColor(colourAxesAndTitles1);
+            // Set axis colours.
+                // x axis
+                graph1->GetXaxis()->SetTitleColor(colourAxesAndTitles1);
+                graph1->GetXaxis()->SetAxisColor(colourAxesAndTitles1);
+                // y axis
+                graph1->GetYaxis()->SetTitleColor(colourAxesAndTitles1);
+                graph1->GetYaxis()->SetAxisColor(colourAxesAndTitles1);
+            // Set title colours.
+                gStyle->SetTitleTextColor(colourAxesAndTitles1);
+                gStyle->SetTitleFillColor(colourBackground1);
+        // Set grid lines.
+	if (mode != 2){
+            gPad->SetGrid(1);
+        }
+        // Set the marker styles.
+        graph1->SetMarkerColor(2); // red
+        graph1->SetMarkerStyle(kFullCircle); // circle
+        graph1->SetMarkerSize(1); // default size
+    }
     // Set the graph titles.
     if (verboseFlag == 1){
         cout << "graph main title: " << graphTitleMain << endl;
@@ -279,10 +348,6 @@ int main (int argc, char **argv){
     graph1->SetTitle(graphTitleMain.c_str());
     graph1->GetXaxis()->SetTitle(graphTitleAxisx.c_str());
     graph1->GetYaxis()->SetTitle(graphTitleAxisy.c_str());
-    // Set the marker styles.
-    graph1->SetMarkerColor(2); // red
-    graph1->SetMarkerStyle(kFullCircle); // circle
-    graph1->SetMarkerSize(1); // default size
     // Set the graph range, if ranges have been specified.
     if (
         axisyMaximum != DBL_MAX &&
